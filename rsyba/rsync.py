@@ -167,7 +167,10 @@ def _option(k, v):
 
         return ['--no-' + k]
     elif isinstance(v, list):
-        return [_option(k, vv) for vv in v]
+        ret = []
+        for vv in v:
+            ret.extend(_option(k, vv))
+        return ret
     elif v is None:
         return []
     else:
