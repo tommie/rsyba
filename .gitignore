@@ -1,1 +1,4 @@
 __pycache__/
+/build/
+/dist/
+/rsyba.egg-info/
