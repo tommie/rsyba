@@ -24,7 +24,7 @@ def main():
     argp.add_argument('-n', '--dry-run', action='store_true', default=False, help='do not do any modifications')
     argp.add_argument('-f', '--filter', metavar='RULE', action='append', default=[], help='add source file filter rule')
     argp.add_argument('--hostname', metavar='FQDN', default=socket.gethostname(), help='override hostname [default %(default)s]')
-    argp.add_argument('--max-file-size', metavar='INT[KMG]', default='1G', help='ignore files larger than this')
+    argp.add_argument('--max-file-size', metavar='INT[KMG]', help='ignore files larger than this')
     argp.add_argument('--timeout', metavar='INT', type=int, default=12*60*60, help='set transfer time limit in seconds [default %(default)s]')
     argp.add_argument('archive', nargs=1, help='base URL of remote location')
     argp.add_argument('local', metavar='path[=tree]', nargs='+', help='local path with optional archive tree name')
@@ -39,15 +39,20 @@ def main():
     if os.isatty(sys.stdout.fileno()):
         def init_progress():
             print('Listing files...')
-        def print_progress(ch):
-            print('\033[1A[%d %s] %s %s\033[K' % (nfiles, datetime.timedelta(seconds=time.time() - start), ch.updates, ch.filename))
+        def print_progress(path, tree, ch):
+            cols = int(os.environ.get('COLUMNS', '100'))
+            filename = ch.filename
+            if filename.startswith(path[1:] + os.sep):
+                filename = filename.replace(path[1:], '<%s>' % (tree,))
+
+            print('\033[1A[%d %s] %s %.*s\033[K' % (nfiles, datetime.timedelta(seconds=time.time() - start), ch.updates, cols - 40, filename))
             sys.stdout.flush()
         def end_progress():
             print('\033[1A[%d %s] Done.\033[K' % (nfiles, datetime.timedelta(seconds=time.time() - start)))
     else:
         def init_progress():
             pass
-        def print_progress(ch):
+        def print_progress(path, tree, ch):
             log.debug('%s', ch)
         def end_progress():
             pass
@@ -59,6 +64,7 @@ def main():
         else:
             (path, tree) = pt
 
+        path = os.path.abspath(path)
         host_base = '/'.join([args.archive.rstrip('/'), 'upload', tree, args.hostname])
 
         log.debug('Starting upload for tree %r...', tree)
@@ -67,7 +73,7 @@ def main():
             try:
                 it = rsync.run_iter(
                     '/'.join([host_base, ts, '']),
-                    os.path.abspath(path) + os.sep,
+                    path + os.sep,
                     archive=True,
                     bwlimit=args.bwlimit,
                     compress=True,
@@ -87,7 +93,7 @@ def main():
                     nfiles += 1
                     t = time.time()
                     if next_progress <= t:
-                        print_progress(ch)
+                        print_progress(path, tree, ch)
                         while next_progress <= t:
                             next_progress += 1
                 break
